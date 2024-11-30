@@ -1,0 +1,6 @@
+*/.env
+*/session_name.session
+telethon-app/app/session_name.session
+venv
+
+.idea
