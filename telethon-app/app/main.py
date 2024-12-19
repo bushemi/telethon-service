@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from datetime import datetime
 
 from flask import Flask, request, jsonify
 from telethon import TelegramClient
@@ -89,6 +90,25 @@ async def get_total_messages(chat_id):
         raise RuntimeError(f"Failed to fetch total message count: {str(e)}")
 
 
+@app.route("/chats/total", methods=["GET"])
+def get_total_chat_count():
+    try:
+        total_chats = run_async_func(get_total_chats)
+        return jsonify({"total_chats": total_chats})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+async def get_total_chats():
+    # """Fetch the total number of chats (dialogs)."""
+    try:
+        # Fetch dialogs with limit=0 to get only the count
+        dialogs = await client.get_dialogs(limit=0)
+        return dialogs.total
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.route("/get_messages", methods=["POST"])
 def get_first_messages():
     try:
@@ -107,15 +127,33 @@ def get_first_messages():
 @app.route("/get_chats", methods=["GET"])
 def get_chats():
     try:
-        # Get the 'limit' parameter from the query string (default to 10 if not provided)
-        limit = int(request.args.get("limit", 10))
-
+        # Get the 'limit' and 'from' parameters from the query string
+        limit = int(
+            request.args.get("limit", 10))  # Default to 5 if not provided
+        offset_id = int(
+            request.args.get("offset_id", 0))  # Default to 0 if not provided
+        offset_date = request.args.get(
+            "offset_date", None)
+        # Default to None if not provided
+        print("offset_date ", offset_date)
+        if offset_date:
+            offset_date = datetime.fromisoformat(offset_date)
+        ignore_pinned = request.args.get(
+            "ignore_pinned", False)  # Default to False if not provided
+        ignore_migrated = request.args.get(
+            "ignore_migrated", False)  # Default to False if not provided
+        folder = request.args.get(
+            "folder", None)  # Default to None if not provided
+        archived = request.args.get(
+            "archived", None)  # Default to None if not provided
         # Get the 'filter' parameter from the query string (default to None if not provided)
         chat_filter = request.args.get("filter",
                                        None)  # Filter can be 'group', 'channel', or None
 
         # Run the asynchronous fetch_chats function with the parameters
-        chats = run_async_func(fetch_chats, limit, chat_filter)
+        chats = run_async_func(fetch_chats, limit, offset_id, chat_filter,
+                               offset_date, ignore_pinned, ignore_migrated,
+                               folder, archived)
         return jsonify(chats)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -153,10 +191,24 @@ async def fetch_messages(chat_id, limit=5, from_id=0):
         return {"error": str(e)}
 
 
-async def fetch_chats(limit, chat_filter):
+async def fetch_chats(limit,
+                      offset_id,
+                      chat_filter,
+                      offset_date,
+                      ignore_pinned,
+                      ignore_migrated,
+                      folder,
+                      archived):
     await client.start()
     dialogs = await client.get_dialogs(
-        limit=limit)  # Fetch the limited number of dialogs
+        limit=limit,
+        offset_date=offset_date,
+        offset_id=offset_id,
+        ignore_pinned=ignore_pinned,
+        ignore_migrated=ignore_migrated,
+        folder=folder,
+        archived=archived)  # Fetch the limited number of dialogs
+    # https://docs.telethon.dev/en/stable/modules/client.html#telethon.client.dialogs.DialogMethods.get_dialogs
 
     # Filter the dialogs based on the 'filter' parameter (if provided)
     if chat_filter:
