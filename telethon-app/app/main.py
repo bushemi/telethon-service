@@ -46,11 +46,36 @@ def get_messages(chat_id):
         # Get 'limit' and 'from' parameters from the query string
         limit = int(
             request.args.get("limit", 5))  # Default to 5 if not provided
-        from_id = int(
-            request.args.get("from", 0))  # Default to 0 if not provided
+        offset_date = request.args.get(
+            "offset_date", None)
+        # Default to None if not provided
+        print("offset_date ", offset_date)
+        if offset_date:
+            offset_date = datetime.fromisoformat(offset_date)
+        offset_id = int(
+            request.args.get("offset_id", 0))  # Default to 0 if not provided
+        max_id = int(
+            request.args.get("max_id", 0))  # Default to 0 if not provided
+        min_id = int(
+            request.args.get("min_id", 0))  # Default to 0 if not provided
+        add_offset = int(
+            request.args.get("add_offset", 0))  # Default to 0 if not provided
+        search = request.args.get("search", None)
+        # Default to None if not provided
+        reverse = request.args.get("reverse", False)
+        # Default to False if not provided
+        scheduled = request.args.get("scheduled", False)
+        # Default to False if not provided
+        reply_to = None
+        if request.args.get("reply_to"):
+            reply_to = int(request.args.get("reply_to"))
+            # Default to None if not provided
 
         # Run the async function in a separate thread to avoid blocking Flask
-        messages = run_async_func(fetch_messages, chat_id, limit, from_id)
+        messages = run_async_func(fetch_messages, chat_id, limit,
+                                  offset_date, offset_id,
+                                  max_id, min_id, add_offset, search,
+                                  reverse, scheduled, reply_to)
         messages_total = run_async_func(get_total_messages, chat_id)
 
         # Format the messages in a simple structure
@@ -70,7 +95,7 @@ def get_messages(chat_id):
             "messages": message_list,
             "chatId": chat_id,
             "limit": limit,
-            "from": from_id,
+            "offset_date": str(offset_date),
             "total": messages_total
         }
 
@@ -177,15 +202,27 @@ async def fetch_first_messages(num_messages):
     ]
 
 
+# https://docs.telethon.dev/en/stable/modules/client.html#telethon.client.messages.MessageMethods.get_messages
 # Function to fetch messages from a chat
-async def fetch_messages(chat_id, limit=5, from_id=0):
+async def fetch_messages(chat_id, limit, offset_date, offset_id,
+                         max_id, min_id, add_offset, search,
+                         reverse, scheduled, reply_to):
     await client.start()  # Start the client if not already started
 
     # Get messages from the specified chat ID
     # The chat_id can be a user ID, group ID, or channel ID
     try:
-        messages = await client.get_messages(chat_id, limit=limit,
-                                             offset_id=from_id)
+        messages = await client.get_messages(chat_id,
+                                             limit=limit,
+                                             offset_date=offset_date,
+                                             offset_id=offset_id,
+                                             max_id=max_id,
+                                             min_id=min_id,
+                                             add_offset=add_offset,
+                                             search=search,
+                                             reverse=reverse,
+                                             scheduled=scheduled,
+                                             reply_to=reply_to)
         return messages
     except Exception as e:
         return {"error": str(e)}
